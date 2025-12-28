@@ -4,8 +4,9 @@ const { dest, src, watch, parallel } = require('gulp')
 const browserSync = require('browser-sync').create()
 const MailHandler = require('./classes/MailHandler')
 
-const mH = MailHandler.init()
+// Load environment variables first
 require('dotenv').config()
+const mH = MailHandler.init()
 
 async function compileEJS() {
   const { data } = await mH.formMailData(
@@ -27,7 +28,10 @@ function watcher() {
   watch('./email-templates', compile)
 }
 
-function serve() {
+async function serve() {
+  // Compile files first before starting the server
+  await parallel(compileCSS, compileEJS)()
+  
   // init browserSync
   browserSync.init({
     server: './dev'
