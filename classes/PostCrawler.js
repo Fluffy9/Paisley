@@ -1,8 +1,10 @@
 const puppeteer = require('puppeteer')
+const { createLogger } = require('../utils/logger')
 
 class PostCrawler {
   constructor({ quiet }) {
     this.quiet = quiet
+    this.logger = createLogger({ quiet: this.quiet })
   }
 
   async crawl(website) {
@@ -70,7 +72,7 @@ class PostCrawler {
         throw new Error(`Failed to navigate to ${link}: ${error.message}`)
       }
 
-      this.quiet && console.log(`${link} reached`)
+      this.logger.debug('Page loaded successfully', { url: link })
 
       // Validate post selector exists
       if (!website.post) {
@@ -79,7 +81,7 @@ class PostCrawler {
 
       let posts = await page.$$(website.post)
       posts = await this.parsePosts(posts, website, page)
-      this.quiet && console.log(posts)
+      this.logger.debug('Posts parsed', { url: link, postCount: posts.length })
       const config = this.getConfig(website)
       data = { posts, config: { ...config, link } }
 
@@ -143,7 +145,7 @@ class PostCrawler {
         // do some margic for some value
         myposts.push(this.sanitize(data))
       }
-      this.quiet && console.log('posts parsed!')
+      this.logger.debug('Posts parsing completed', { count: myposts.length })
       resolve(myposts)
     })
   }

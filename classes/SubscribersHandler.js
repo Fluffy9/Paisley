@@ -21,7 +21,10 @@ class SubscribersHandler extends PostCrawler {
     } catch (e) {
       /* shut up */
     }
-    console.log('crawling started')
+    this.logger.info('Starting crawl process', {
+      subscribersCount: this.subscribers.length,
+      dataDir: this.dataDir
+    })
     // for each subscriber, loop through all the mail and crawl all its websites
     // write the to the email file in a way specified by the subscriber
     let count = 0
@@ -33,7 +36,20 @@ class SubscribersHandler extends PostCrawler {
         const next5Minutes = date.addMinutes(new Date(), 5)
         let nextCronDate = new Date(cron.next()._date.toString())
         // if this mail should not be sent in this hour, forget it
-        if (nextCronDate > next5Minutes) continue
+        if (nextCronDate > next5Minutes) {
+          this.logger.debug('Skipping mail - cron not due', {
+            email: subscriber.email,
+            mailName: mail.name,
+            nextRun: nextCronDate
+          })
+          continue
+        }
+
+        this.logger.debug('Processing mail', {
+          email: subscriber.email,
+          mailName: mail.name,
+          mailIndex: mailsCount
+        })
 
         const data = await this.handleMail(mail)
         await this.writeMailData(
@@ -46,8 +62,8 @@ class SubscribersHandler extends PostCrawler {
         )
         count++
       }
-      this.quiet && console.log(`${count} mails crawled!`)
     }
+    this.logger.info('Crawl process completed', { totalMailsCrawled: count })
     return count
   }
 

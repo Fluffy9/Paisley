@@ -4,6 +4,7 @@ const { readdirSync, mkdirSync } = require('fs')
 const ejs = require('ejs')
 const mailer = require('nodemailer')
 const Juice = require('juice')
+const { createLogger } = require('../utils/logger')
 
 class MailHandler {
   constructor({
@@ -33,6 +34,7 @@ class MailHandler {
     this.viewsDir = viewsDir
     this.emailRegex = /(.+)-mail-[0-9]+\.yaml$/
     this.quiet = !quiet
+    this.logger = createLogger({ quiet: this.quiet })
   }
 
   /**
@@ -63,7 +65,7 @@ class MailHandler {
   }
 
   async start() {
-    this.quiet && console.log('mailing started!')
+    this.logger.info('Starting mail sending process', { dataDir: this.dataDir })
     let count = 0
     let failedCount = 0
     const errors = []
@@ -76,7 +78,7 @@ class MailHandler {
     } catch (e) {
       // create the directory here
       mkdirSync(this.dataDir, { recursive: true })
-      this.quiet && console.log(`Created mail data directory: ${this.dataDir}`)
+      this.logger.info('Created mail data directory', { dataDir: this.dataDir })
     }
 
     for (const file of files) {
@@ -87,7 +89,7 @@ class MailHandler {
       if (!this.isSafePath(file)) {
         const error = `Skipping unsafe file path: ${file}`
         errors.push(error)
-        this.quiet && console.error(error)
+        this.logger.warn('Unsafe file path detected', { file, error })
         continue
       }
 
@@ -99,7 +101,7 @@ class MailHandler {
         if (!this.isValidEmail(data.email)) {
           const error = `Invalid email address in file ${file}: ${data.email}`
           errors.push(error)
-          this.quiet && console.error(error)
+          this.logger.error('Invalid email address in file', { file, email: data.email })
           failedCount++
           continue
         }
@@ -107,21 +109,32 @@ class MailHandler {
         // Send email with retry logic
         await this.sendMailWithRetry(data.email, data.mail, data.name, 3)
         count++
+        this.logger.debug('Email sent successfully', { email: data.email, subject: data.name })
       } catch (error) {
         const errorMsg = `Failed to process ${file}: ${error.message}`
         errors.push(errorMsg)
-        this.quiet && console.error(errorMsg)
+        this.logger.error('Failed to process email file', {
+          file,
+          error: error.message,
+          stack: error.stack
+        })
         failedCount++
       }
     }
 
-    this.quiet && console.log(`${count} mails sent successfully`)
+    this.logger.info('Mail sending process completed', {
+      success: count,
+      failed: failedCount,
+      total: count + failedCount
+    })
+
     if (failedCount > 0) {
-      this.quiet && console.error(`${failedCount} mails failed to send`)
-      if (errors.length > 0) {
-        this.quiet && console.error('Errors:', errors.join('; '))
-      }
+      this.logger.warn('Some emails failed to send', {
+        failedCount,
+        errors: errors.length > 0 ? errors : undefined
+      })
     }
+
     return { success: count, failed: failedCount, errors }
   }
 
@@ -189,7 +202,11 @@ class MailHandler {
       try {
         await this.sendMail(email, mail, name)
         if (attempt > 1) {
-          this.quiet && console.log(`Email sent successfully on attempt ${attempt}`)
+          this.logger.info('Email sent successfully after retry', {
+            email,
+            attempt,
+            maxRetries
+          })
         }
         return
       } catch (error) {
@@ -197,13 +214,22 @@ class MailHandler {
         if (attempt < maxRetries) {
           // Exponential backoff: wait 2^attempt seconds
           const delay = Math.pow(2, attempt) * 1000
-          this.quiet && console.log(
-            `Email send failed (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms...`
-          )
+          this.logger.warn('Email send failed, retrying', {
+            email,
+            attempt,
+            maxRetries,
+            delay,
+            error: error.message
+          })
           await new Promise((resolve) => setTimeout(resolve, delay))
         }
       }
     }
+    this.logger.error('Failed to send email after all retries', {
+      email,
+      maxRetries,
+      error: lastError.message
+    })
     throw new Error(`Failed to send email after ${maxRetries} attempts: ${lastError.message}`)
   }
 
