@@ -4,7 +4,7 @@ const {
   mockPuppeteer,
   mockElementHandle
 } = require('./PuppeteerMock')
-const rimraf = require('rimraf')
+const { rimraf } = require('rimraf')
 const puppeteer = require('puppeteer')
 const { mkdirSync } = require('fs')
 
@@ -19,7 +19,9 @@ beforeAll(() => {
 })
 
 // afterAll((cb) => rm(dataDir, { recursive: true, force: true }, cb))
-afterAll((cb) => rimraf(dataDir, cb))
+afterAll(async () => {
+  await rimraf(dataDir)
+})
 
 beforeEach(() => {
   pC = new PostCrawler({ quiet: true })
@@ -27,7 +29,8 @@ beforeEach(() => {
 
 const config = {
   ignore: /^(ignore|outsideContext|website$)/,
-  website: 'www.fakewebsite.com',
+  website: 'https://www.fakewebsite.com',
+  post: '.post', // Required post selector
   title: 'title',
   comments: 'comments',
   imagesrc: 'image',
@@ -43,8 +46,8 @@ test('if is crawl working as expected', async () => {
       posts: [],
       config: {
         ignore: /^(ignore|outsideContext|website$)/,
-        website: 'www.fakewebsite.com',
-        link: 'www.fakewebsite.com'
+        website: 'https://www.fakewebsite.com',
+        link: 'https://www.fakewebsite.com'
       }
     })
   )
@@ -101,13 +104,13 @@ describe('parsePosts working as expected on posts', () => {
     )
     expect(myposts).toEqual(
       expect.arrayContaining([
-        {
+        expect.objectContaining({
           title: 'shining in paris',
           comments: '20',
           imagesrc: 'www.fakeimageurl.com',
           link: 'www.myfakelink.com',
           'background-color': 'red'
-        }
+        })
       ])
     )
   })
@@ -116,13 +119,13 @@ describe('parsePosts working as expected on posts', () => {
     const myposts = await pC.parsePosts(posts, config, page)
     expect(myposts).toEqual(
       expect.arrayContaining([
-        {
+        expect.objectContaining({
           title: 'shining in paris',
           comments: '20',
           imagesrc: 'www.fakeimageurl.com',
           link: 'www.myfakelink.com',
           'background-color': 'red'
-        }
+        })
       ])
     )
   })

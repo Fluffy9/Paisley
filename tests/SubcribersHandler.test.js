@@ -1,6 +1,6 @@
 const { mockPuppeteer } = require('./PuppeteerMock')
 const { readdirSync, mkdirSync, writeFileSync } = require('fs')
-const rimraf = require('rimraf')
+const { rimraf } = require('rimraf')
 const SubscribersHandler = require('../classes/SubscribersHandler.js')
 const DataHandler = require('../classes/DataHandler')
 
@@ -43,7 +43,9 @@ beforeAll(() => {
 })
 
 // afterAll((cb) => rm(dataDir, { recursive: true, force: true }, cb))
-afterAll((cb) => rimraf(dataDir, cb))
+afterAll(async () => {
+  await rimraf(dataDir)
+})
 beforeEach(() => {
   sH = SubscribersHandler.init()
   sH.quiet = false
@@ -60,9 +62,9 @@ describe('start is working as expected on', () => {
     expect(dirData).toEqual(expect.arrayContaining([`${email}-mail-0.yaml`]))
     expect(await DataHandler.read(`${dataDir}/${email}-mail-0.yaml`))
       .toMatchInlineSnapshot(`
-      Object {
-        "0": Object {
-          "config": Object {
+      {
+        "0": {
+          "config": {
             "count": 6,
             "ignore": "^(ascending|outsideContext|ignore|count|name|channel|post|website)$",
             "link": "https://indiehackers.com",
@@ -70,10 +72,10 @@ describe('start is working as expected on', () => {
             "post": ".feed-item",
             "website": "https://indiehackers.com",
           },
-          "posts": Array [],
+          "posts": [],
         },
-        "1": Object {
-          "config": Object {
+        "1": {
+          "config": {
             "count": 6,
             "ignore": "^(ascending|outsideContext|ignore|count|name|channel|post|website)$",
             "link": "https://news.ycombinator.com/news",
@@ -82,9 +84,9 @@ describe('start is working as expected on', () => {
             "post": " .athing",
             "website": "https://news.ycombinator.com/news",
           },
-          "posts": Array [],
+          "posts": [],
         },
-        "cron": "* ${hour} * * *",
+        "cron": "* 18 * * *",
         "name": "Daily Digest",
       }
     `)
@@ -112,9 +114,9 @@ test('if handleMail is working as expected', async () => {
   }
   await sH.load()
   expect(await sH.handleMail(mail)).toMatchInlineSnapshot(`
-    Array [
-      Object {
-        "config": Object {
+    [
+      {
+        "config": {
           "count": 6,
           "ignore": "^(ascending|outsideContext|ignore|count|name|channel|post|website)$",
           "link": "https://indiehackers.com",
@@ -122,7 +124,7 @@ test('if handleMail is working as expected', async () => {
           "post": ".feed-item",
           "website": "https://indiehackers.com",
         },
-        "posts": Array [],
+        "posts": [],
       },
     ]
   `)

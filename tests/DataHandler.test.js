@@ -1,7 +1,7 @@
 const DataHandler = require('../classes/DataHandler')
 const { mkdirSync, readFileSync, writeFileSync } = require('fs')
 
-const rimraf = require('rimraf')
+const { rimraf } = require('rimraf')
 
 const dataDir = './tests/test-data'
 
@@ -11,15 +11,11 @@ beforeAll(() => {
   } catch (e) {}
 })
 
-afterAll((cb) => rimraf(dataDir, cb))
-
-jest.mock('download', () => () => {
-  const Stream = require('stream')
-  const readable = new Stream.Readable()
-  readable.push('[1, 2, 3]')
-  readable.push(null)
-  return readable
+afterAll(async () => {
+  await rimraf(dataDir)
 })
+
+// Mock is now handled via moduleNameMapper in jest config
 describe('Test if we can write file to', () => {
   test('fs', () => {
     const data = [1, 2, 3]

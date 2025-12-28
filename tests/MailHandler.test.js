@@ -1,4 +1,4 @@
-const rimraf = require('rimraf')
+const { rimraf } = require('rimraf')
 const MailHandler = require('../classes/MailHandler')
 const DataHandler = require('../classes/DataHandler')
 const { mkdirSync, readdirSync } = require('fs')
@@ -103,7 +103,9 @@ beforeAll(async () => {
   await DataHandler.write(mailPath2, mailData2)
 })
 
-afterAll((cb) => rimraf(dataDir, cb))
+afterAll(async () => {
+  await rimraf(dataDir)
+})
 
 beforeEach((cb) => {
   // create a fresh new object every time we run a test
@@ -132,8 +134,11 @@ test('if convertMailDataToArray is working as expected', async () => {
 
 test('if start is working as expected', async () => {
   const dataDirContent = readdirSync(dataDir)
-  const count = await mh.start()
-  expect(count).toBe(dataDirContent.length)
+  const result = await mh.start()
+  // start() now returns an object with success, failed, and errors
+  expect(result.success).toBe(dataDirContent.length)
+  expect(result.failed).toBe(0)
+  expect(result.errors).toEqual([])
 })
 
 test('if sendMail is working as expected', async () => {

@@ -21,6 +21,16 @@ const mockPage = {
 
   setOfflineMode(value) {
     return value
+  },
+
+  setDefaultNavigationTimeout(timeout) {
+    // Mock method for setting navigation timeout
+    return timeout
+  },
+
+  setDefaultTimeout(timeout) {
+    // Mock method for setting default timeout
+    return timeout
   }
 }
 

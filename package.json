@@ -12,37 +12,58 @@
     "dev": "NODE_ENV=development node index.js",
     "test": "jest"
   },
+  "jest": {
+    "testEnvironment": "node",
+    "transformIgnorePatterns": [
+      "node_modules/(?!(got|@szmarczak|cacheable-request|normalize-url|lowercase-keys|responselike|mimic-response)/)"
+    ],
+    "moduleNameMapper": {
+      "^download$": "<rootDir>/tests/mocks/download.js"
+    }
+  },
   "author": "uduakabaci",
   "license": "MIT",
   "devDependencies": {
-    "browser-sync": "^2.26.13",
-    "eslint": "^7.32.0",
-    "eslint-config-prettier": "^8.3.0",
+    "browser-sync": "^3.0.4",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
     "gulp-rename": "^2.0.0",
-    "prettier": "^2.3.2"
+    "prettier": "^3.7.4"
   },
   "dependencies": {
-    "cron-parser": "^2.18.0",
+    "cron-parser": "^4.9.0",
     "cron-validator": "^1.2.0",
-    "csv": "^5.3.2",
-    "date-and-time": "^0.14.1",
-    "dotenv": "^8.2.0",
+    "csv": "^6.4.1",
+    "date-and-time": "^4.1.2",
+    "dotenv": "^17.2.3",
     "download": "^8.0.0",
     "ejs": "^3.1.5",
-    "gulp": "^4.0.2",
+    "gulp": "^5.0.1",
     "gulp-ejs": "^5.1.0",
-    "jest": "^26.6.3",
-    "js-yaml": "^3.14.0",
-    "juice": "^7.0.0",
-    "nodemailer": "^6.4.16",
-    "nodemon": "^2.0.6",
-    "puppeteer": "^5.3.1",
-    "rimraf": "^3.0.2",
+    "jest": "^30.2.0",
+    "js-yaml": "^4.1.1",
+    "juice": "^11.0.3",
+    "nodemailer": "^7.0.12",
+    "nodemon": "^3.1.11",
+    "puppeteer": "^24.34.0",
+    "rimraf": "^6.1.2",
     "stream-to-string": "^1.2.0",
     "valid-url": "^1.0.9"
   },
   "engines": {
     "node": ">=14.15.1",
     "npm": ">=6.14.8"
+  },
+  "pnpm": {
+    "overrides": {
+      "braces": ">=3.0.3",
+      "semver": ">=7.5.2",
+      "http-cache-semantics": ">=4.1.1",
+      "axios": ">=0.30.2",
+      "got": ">=11.8.5",
+      "micromatch": ">=4.0.8",
+      "serve-static": ">=1.16.0",
+      "send": ">=0.19.0"
+    }
   }
 }

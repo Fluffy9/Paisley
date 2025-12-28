@@ -18,24 +18,39 @@ class DataHandler {
       string = readFileSync(filename, 'utf8')
     }
 
-    // Use load() with safe schema instead of deprecated safeLoad()
+    // Use load() - in js-yaml v4, load() is safe by default
     // This prevents code execution from YAML files
-    // For js-yaml v3: use DEFAULT_SAFE_SCHEMA, for v4+: schema is built-in
     try {
-      const schema = yaml.DEFAULT_SAFE_SCHEMA || yaml.CORE_SCHEMA
-      const data = yaml.load(string, { schema })
-      return data
+      // js-yaml v4: load() is safe by default, no schema needed
+      // For backward compatibility, check if schema exists (v3)
+      if (yaml.DEFAULT_SAFE_SCHEMA) {
+        // js-yaml v3
+        const data = yaml.load(string, { schema: yaml.DEFAULT_SAFE_SCHEMA })
+        return data
+      } else {
+        // js-yaml v4+ - safe by default
+        const data = yaml.load(string)
+        return data
+      }
     } catch (error) {
       throw new Error(`Failed to parse YAML file ${filename}: ${error.message}`)
     }
   }
 
   static async write(filename, data) {
-    // Use dump() with safe schema instead of deprecated safeDump()
+    // Use dump() - in js-yaml v4, dump() is safe by default
     try {
-      const schema = yaml.DEFAULT_SAFE_SCHEMA || yaml.CORE_SCHEMA
-      const content = yaml.dump(data, { schema })
-      return writeFileSync(filename, content, 'utf8')
+      // js-yaml v4: dump() is safe by default, no schema needed
+      // For backward compatibility, check if schema exists (v3)
+      if (yaml.DEFAULT_SAFE_SCHEMA) {
+        // js-yaml v3
+        const content = yaml.dump(data, { schema: yaml.DEFAULT_SAFE_SCHEMA })
+        return writeFileSync(filename, content, 'utf8')
+      } else {
+        // js-yaml v4+ - safe by default
+        const content = yaml.dump(data)
+        return writeFileSync(filename, content, 'utf8')
+      }
     } catch (error) {
       throw new Error(`Failed to write YAML file ${filename}: ${error.message}`)
     }
