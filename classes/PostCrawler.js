@@ -54,7 +54,7 @@ class PostCrawler {
       }
 
       const page = await browser.newPage()
-      
+
       // Set timeouts for page operations
       page.setDefaultNavigationTimeout(30000) // 30 seconds
       page.setDefaultTimeout(30000)
@@ -99,55 +99,53 @@ class PostCrawler {
   }
 
   async parsePosts(posts, website, page) {
-    return new Promise(async (resolve) => {
-      const regex = new RegExp(website.ignore)
-      const myposts = []
-      // if the post has other value out the context of the element, use id
-      for (let post of posts) {
-        const data = {}
-        for (let key in website) {
-          if (regex.test(key)) {
-            continue
-          } else {
-            // i want to be able to query these outside context posts with their
-            // id
-            const id = website.outsideContext
-              ? `[id='${await post.evaluate((node) => node.id)}']`
-              : ''
+    const regex = new RegExp(website.ignore)
+    const myposts = []
+    // if the post has other value out the context of the element, use id
+    for (let post of posts) {
+      const data = {}
+      for (let key in website) {
+        if (regex.test(key)) {
+          continue
+        } else {
+          // i want to be able to query these outside context posts with their
+          // id
+          const id = website.outsideContext
+            ? `[id='${await post.evaluate((node) => node.id)}']`
+            : ''
 
-            const selector = (id + ' ' + website[key]).trim()
-            let prop = 'innerText'
-            const imageMatch = key.match(/^image(.*)/i)
-            const styleMatch = key.match(/^style-(.*)/i)
-            let isStyle = false
-            // handle link differently
-            if (key.search(/link/i) != -1) {
-              prop = 'href'
-            } else if (imageMatch) {
-              // grab the real match
-              prop = imageMatch[1]
-            } else if (styleMatch) {
-              // to access a style property, prefix the property with style-
-              key = prop = styleMatch[1]
-              isStyle = true
-            }
-            let datum = await this.selector({
-              post,
-              selector,
-              prop,
-              isOutsideContext: website.outsideContext,
-              page,
-              isStyle
-            })
-            data[key] = datum
+          const selector = (id + ' ' + website[key]).trim()
+          let prop = 'innerText'
+          const imageMatch = key.match(/^image(.*)/i)
+          const styleMatch = key.match(/^style-(.*)/i)
+          let isStyle = false
+          // handle link differently
+          if (key.search(/link/i) != -1) {
+            prop = 'href'
+          } else if (imageMatch) {
+            // grab the real match
+            prop = imageMatch[1]
+          } else if (styleMatch) {
+            // to access a style property, prefix the property with style-
+            key = prop = styleMatch[1]
+            isStyle = true
           }
+          let datum = await this.selector({
+            post,
+            selector,
+            prop,
+            isOutsideContext: website.outsideContext,
+            page,
+            isStyle
+          })
+          data[key] = datum
         }
-        // do some margic for some value
-        myposts.push(this.sanitize(data))
       }
-      this.logger.debug('Posts parsing completed', { count: myposts.length })
-      resolve(myposts)
-    })
+      // do some magic for some value
+      myposts.push(this.sanitize(data))
+    }
+    this.logger.debug('Posts parsing completed', { count: myposts.length })
+    return myposts
   }
 
   async selector({ post, selector, prop, isOutsideContext, page, isStyle }) {

@@ -44,4 +44,3 @@ function createLogger({ quiet = false, level = 'info' } = {}) {
 }
 
 module.exports = { createLogger }
-

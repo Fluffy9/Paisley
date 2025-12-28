@@ -31,12 +31,12 @@ function watcher() {
 async function serve() {
   // Compile files first before starting the server
   await parallel(compileCSS, compileEJS)()
-  
+
   // init browserSync
   browserSync.init({
     server: './dev'
   })
-  // watch our file and do the need fule
+  // watch our file and do the needful
   watch('./email-templates', parallel(compileCSS, compileEJS))
   watch('./dev').on('change', browserSync.reload)
 }

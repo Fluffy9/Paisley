@@ -6,4 +6,3 @@ module.exports = function download(url) {
   readable.push(null)
   return readable
 }
-

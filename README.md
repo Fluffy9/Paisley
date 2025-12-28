@@ -218,11 +218,9 @@ This file provides the list of subscribers and how each email should be structur
 
 - `email:` The recipient's email
 - `mails:` List of mails for this recipient
-
   - `cron:` A cron time format for when the mail should be sent
   - `name:` The name and subject of the mail
   - `list:` A list of sections configurations for the mail
-
     - `base:` The name of the configuration to use in crawling data
     - `count:` The number of posts needed in this section
     - `name:` The name of this section

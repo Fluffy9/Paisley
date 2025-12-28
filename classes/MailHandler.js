@@ -33,7 +33,7 @@ class MailHandler {
     this.dataDir = dataDir
     this.viewsDir = viewsDir
     this.emailRegex = /(.+)-mail-[0-9]+\.yaml$/
-    this.quiet = !quiet
+    this.quiet = quiet
     this.logger = createLogger({ quiet: this.quiet })
   }
 
@@ -101,7 +101,10 @@ class MailHandler {
         if (!this.isValidEmail(data.email)) {
           const error = `Invalid email address in file ${file}: ${data.email}`
           errors.push(error)
-          this.logger.error('Invalid email address in file', { file, email: data.email })
+          this.logger.error('Invalid email address in file', {
+            file,
+            email: data.email
+          })
           failedCount++
           continue
         }
@@ -109,7 +112,10 @@ class MailHandler {
         // Send email with retry logic
         await this.sendMailWithRetry(data.email, data.mail, data.name, 3)
         count++
-        this.logger.debug('Email sent successfully', { email: data.email, subject: data.name })
+        this.logger.debug('Email sent successfully', {
+          email: data.email,
+          subject: data.name
+        })
       } catch (error) {
         const errorMsg = `Failed to process ${file}: ${error.message}`
         errors.push(errorMsg)
@@ -139,17 +145,17 @@ class MailHandler {
   }
 
   async constructMailData(file) {
-    return new Promise(async (resolve, reject) => {
-      let { email, data } = await this.formMailData(file)
-      let mail = await ejs.renderFile(
-        `${this.viewsDir}/index.ejs`,
-        { data },
-        {
-          views: [this.viewsDir]
-        }
-      )
+    let { email, data } = await this.formMailData(file)
+    let mail = await ejs.renderFile(
+      `${this.viewsDir}/index.ejs`,
+      { data },
+      {
+        views: [this.viewsDir]
+      }
+    )
 
-      // juice the mail with resources. we will inline most of the content here
+    // juice the mail with resources. we will inline most of the content here
+    return new Promise((resolve, reject) => {
       Juice.juiceResources(
         mail,
         {
@@ -172,7 +178,9 @@ class MailHandler {
     // grab the email from the filename
     const match = path.basename(file).match(this.emailRegex)
     if (!match || !match[1]) {
-      throw new Error(`Invalid email file format: ${file}. Expected format: email-mail-N.yaml`)
+      throw new Error(
+        `Invalid email file format: ${file}. Expected format: email-mail-N.yaml`
+      )
     }
 
     const email = match[1]
@@ -230,7 +238,9 @@ class MailHandler {
       maxRetries,
       error: lastError.message
     })
-    throw new Error(`Failed to send email after ${maxRetries} attempts: ${lastError.message}`)
+    throw new Error(
+      `Failed to send email after ${maxRetries} attempts: ${lastError.message}`
+    )
   }
 
   sendMail(email, mail, name) {
@@ -297,7 +307,7 @@ class MailHandler {
     ]
     const months = [
       'january',
-      'febuary',
+      'february',
       'march',
       'april',
       'may',
@@ -356,7 +366,9 @@ class MailHandler {
     // Whitelist of allowed operators to prevent code injection
     const allowedOperators = ['+', '-', '*', '/']
     if (!allowedOperators.includes(operator)) {
-      throw new Error(`Invalid operator: ${operator}. Allowed operators: ${allowedOperators.join(', ')}`)
+      throw new Error(
+        `Invalid operator: ${operator}. Allowed operators: ${allowedOperators.join(', ')}`
+      )
     }
 
     // Ensure operands are numbers

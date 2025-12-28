@@ -10,16 +10,16 @@ class SubscribersHandler extends PostCrawler {
     this.subscribersFile = subscribersFile
     this.scrapperSchemaFile = scrapperSchemaFile
     this.dataDir = dataDir
-    this.quiet = !quiet
+    this.quiet = quiet
   }
 
   async start() {
     await this.load()
     // try to create data dir
     try {
-      mkdirSync(this.dataDir)
+      mkdirSync(this.dataDir, { recursive: true })
     } catch (e) {
-      /* shut up */
+      // Directory already exists or creation failed - ignore
     }
     this.logger.info('Starting crawl process', {
       subscribersCount: this.subscribers.length,
@@ -77,9 +77,9 @@ class SubscribersHandler extends PostCrawler {
       delete website.structure
       // crawl the website here before attaching our structure back
       const datum = await this.crawl(website)
-      structure
-        ? (datum.config = Object.assign({}, data.config, { structure }))
-        : null
+      if (structure) {
+        datum.config = Object.assign({}, datum.config || {}, { structure })
+      }
       data.push(datum)
     }
     return data
