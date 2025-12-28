@@ -35,9 +35,39 @@ class MailHandler {
     this.quiet = !quiet
   }
 
+  /**
+   * Validates email address format
+   * @param {string} email - Email address to validate
+   * @returns {boolean} True if email is valid
+   */
+  isValidEmail(email) {
+    if (!email || typeof email !== 'string') return false
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(email.trim())
+  }
+
+  /**
+   * Validates file path to prevent path traversal attacks
+   * @param {string} filePath - File path to validate
+   * @returns {boolean} True if path is safe
+   */
+  isSafePath(filePath) {
+    if (!filePath || typeof filePath !== 'string') return false
+    // Prevent path traversal (../, ..\, etc.)
+    if (filePath.includes('..')) return false
+    // Prevent absolute paths outside data directory
+    const path = require('path')
+    const resolved = path.resolve(this.dataDir, filePath)
+    const dataDirResolved = path.resolve(this.dataDir)
+    return resolved.startsWith(dataDirResolved)
+  }
+
   async start() {
     this.quiet && console.log('mailing started!')
     let count = 0
+    let failedCount = 0
+    const errors = []
+
     // make sure we have email present before sending 'em
     // read all the files in mail-data folder and send them
     let files = []
@@ -45,17 +75,54 @@ class MailHandler {
       files = readdirSync(this.dataDir)
     } catch (e) {
       // create the directory here
-      mkdirSync(this.dataDir)
+      mkdirSync(this.dataDir, { recursive: true })
+      this.quiet && console.log(`Created mail data directory: ${this.dataDir}`)
     }
-    for (let file of files) {
+
+    for (const file of files) {
       // dont parse this file if it does not pass meet our requirement
       if (!this.emailRegex.test(file)) continue
-      const data = await this.constructMailData(`${this.dataDir}/${file}`)
-      await this.sendMail(data.email, data.mail, data.name)
-      count++
+
+      // Validate file path to prevent path traversal
+      if (!this.isSafePath(file)) {
+        const error = `Skipping unsafe file path: ${file}`
+        errors.push(error)
+        this.quiet && console.error(error)
+        continue
+      }
+
+      try {
+        const filePath = `${this.dataDir}/${file}`
+        const data = await this.constructMailData(filePath)
+
+        // Validate email before sending
+        if (!this.isValidEmail(data.email)) {
+          const error = `Invalid email address in file ${file}: ${data.email}`
+          errors.push(error)
+          this.quiet && console.error(error)
+          failedCount++
+          continue
+        }
+
+        // Send email with retry logic
+        await this.sendMailWithRetry(data.email, data.mail, data.name, 3)
+        count++
+      } catch (error) {
+        const errorMsg = `Failed to process ${file}: ${error.message}`
+        errors.push(errorMsg)
+        this.quiet && console.error(errorMsg)
+        failedCount++
+      }
     }
-    this.quiet && console.log(`${count} mails sent`)
-    return count
+
+    this.quiet && console.log(`${count} mails sent successfully`)
+    if (failedCount > 0) {
+      this.quiet && console.error(`${failedCount} mails failed to send`)
+      if (errors.length > 0) {
+        this.quiet && console.error('Errors:', errors.join('; '))
+      }
+    }
+    return { success: count, failed: failedCount, errors }
   }
 
   async constructMailData(file) {
@@ -84,25 +151,91 @@ class MailHandler {
   }
 
   async formMailData(file) {
+    // Validate file path
+    if (!file || typeof file !== 'string') {
+      throw new Error('File path is required and must be a string')
+    }
+
     // grab the email from the filename
-    const email = path.basename(file).match(this.emailRegex)[1]
+    const match = path.basename(file).match(this.emailRegex)
+    if (!match || !match[1]) {
+      throw new Error(`Invalid email file format: ${file}. Expected format: email-mail-N.yaml`)
+    }
+
+    const email = match[1]
+
+    // Validate extracted email
+    if (!this.isValidEmail(email)) {
+      throw new Error(`Invalid email address extracted from filename: ${email}`)
+    }
+
     let data = this.convertMailDataToArray(await DataHandler.read(file))
     data = this.transformPosts(data)
     data.date = this.formDate()
     return { data, email }
   }
 
+  /**
+   * Sends email with retry logic and exponential backoff
+   * @param {string} email - Recipient email address
+   * @param {string} mail - HTML email content
+   * @param {string} name - Email subject/name
+   * @param {number} maxRetries - Maximum number of retry attempts
+   * @returns {Promise} Promise that resolves when email is sent
+   */
+  async sendMailWithRetry(email, mail, name, maxRetries = 3) {
+    let lastError
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await this.sendMail(email, mail, name)
+        if (attempt > 1) {
+          this.quiet && console.log(`Email sent successfully on attempt ${attempt}`)
+        }
+        return
+      } catch (error) {
+        lastError = error
+        if (attempt < maxRetries) {
+          // Exponential backoff: wait 2^attempt seconds
+          const delay = Math.pow(2, attempt) * 1000
+          this.quiet && console.log(
+            `Email send failed (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms...`
+          )
+          await new Promise((resolve) => setTimeout(resolve, delay))
+        }
+      }
+    }
+    throw new Error(`Failed to send email after ${maxRetries} attempts: ${lastError.message}`)
+  }
+
   sendMail(email, mail, name) {
+    // Validate inputs
+    if (!this.isValidEmail(email)) {
+      throw new Error(`Invalid recipient email: ${email}`)
+    }
+    if (!this.isValidEmail(this.fromEmail)) {
+      throw new Error(`Invalid sender email: ${this.fromEmail}`)
+    }
+    if (!mail || typeof mail !== 'string') {
+      throw new Error('Email content is required and must be a string')
+    }
+    if (!name || typeof name !== 'string') {
+      throw new Error('Email subject is required and must be a string')
+    }
+
     // send the mail here.
     const transporter = mailer.createTransport(
       {
         host: this.host,
         port: this.port,
-        secure: false,
+        secure: this.port === 465, // Use secure connection for port 465
         auth: {
           user: this.username,
           pass: this.password
-        }
+        },
+        // Add connection timeout
+        connectionTimeout: 10000, // 10 seconds
+        greetingTimeout: 10000,
+        socketTimeout: 10000
       },
       {
         from: this.fromEmail
@@ -118,7 +251,9 @@ class MailHandler {
 
     return new Promise((resolve, reject) => {
       transporter.sendMail(option, (err, data) => {
-        if (err) return reject(err)
+        if (err) {
+          return reject(new Error(`SMTP error: ${err.message}`))
+        }
         resolve(data)
       })
     })
@@ -183,6 +318,40 @@ class MailHandler {
     return tempData
   }
 
+  /**
+   * Safely evaluates a mathematical expression with two operands and an operator
+   * @param {number} operand1 - First operand
+   * @param {string} operator - Mathematical operator (+, -, *, /)
+   * @param {number} operand2 - Second operand
+   * @returns {number} Result of the expression
+   * @throws {Error} If operator is not allowed
+   */
+  safeEvaluate(operand1, operator, operand2) {
+    // Whitelist of allowed operators to prevent code injection
+    const allowedOperators = ['+', '-', '*', '/']
+    if (!allowedOperators.includes(operator)) {
+      throw new Error(`Invalid operator: ${operator}. Allowed operators: ${allowedOperators.join(', ')}`)
+    }
+
+    // Ensure operands are numbers
+    const num1 = Number(operand1) || 0
+    const num2 = Number(operand2) || 0
+
+    // Perform safe arithmetic operation
+    switch (operator) {
+      case '+':
+        return num1 + num2
+      case '-':
+        return num1 - num2
+      case '*':
+        return num1 * num2
+      case '/':
+        return num2 !== 0 ? num1 / num2 : 0
+      default:
+        return 0
+    }
+  }
+
   sortAndSlicePost(posts) {
     const config = posts.config
     const sort = config.sort ? config.sort : 'points'
@@ -199,31 +368,46 @@ class MailHandler {
       .sort((a, z) => {
         // if an array was given, then it must contain the first operand
         // operator and second operand
-        if (Array.isArray(sort) && sort.length == 3) {
-          let [fo, op, so] = sort
-          const expA = fetchProp(a, fo) + op + fetchProp(a, so)
-          const expZ = fetchProp(z, fo) + op + fetchProp(z, so)
-          a = eval(expA)
-          z = eval(expZ)
+        if (Array.isArray(sort) && sort.length === 3) {
+          const [fo, op, so] = sort
+          // Use safe evaluation instead of eval() to prevent code injection
+          const valA = this.safeEvaluate(
+            this.fetchProp(a, fo),
+            op,
+            this.fetchProp(a, so)
+          )
+          const valZ = this.safeEvaluate(
+            this.fetchProp(z, fo),
+            op,
+            this.fetchProp(z, so)
+          )
+          a = valA
+          z = valZ
         } else {
           // just go ahead with sorting
-          a = fetchProp(a, sort)
-          z = fetchProp(z, sort)
-        }
-
-        function fetchProp(data, prop) {
-          // zero if the demanded prop does not exist
-          let result = 0
-          if (typeof prop == 'string' && data[prop]) result = data[prop]
-
-          // turn it into number either way
-          return !Number(result) ? 0 : Number(result)
+          a = this.fetchProp(a, sort)
+          z = this.fetchProp(z, sort)
         }
 
         return ascending ? a - z : z - a
       })
       .slice(0, count)
     return posts
+  }
+
+  /**
+   * Fetches a property value from data object, returning 0 if not found
+   * @param {Object} data - Data object to fetch property from
+   * @param {string} prop - Property name to fetch
+   * @returns {number} Property value as number, or 0 if not found
+   */
+  fetchProp(data, prop) {
+    // zero if the demanded prop does not exist
+    let result = 0
+    if (typeof prop === 'string' && data[prop]) result = data[prop]
+
+    // turn it into number either way
+    return !Number(result) ? 0 : Number(result)
   }
 
   convertMailDataToArray(mail) {

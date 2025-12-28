@@ -6,34 +6,94 @@ class PostCrawler {
   }
 
   async crawl(website) {
-    // lets know what made our crawling stop
-    const browser = await puppeteer.launch({
-      headless: !false,
-      args: ['--no-sandbox']
-    })
-    let data = {}
-    let link = website.website
-    website.ignore = website.ignore ? website.ignore : /''/
-    // process.exit()
-    // some link will come with variable, adjust it for convinience
-    let part = link.match(/\$\{(.+)?\}/)
-    part = part ? part[1] : part
-    if (part) link = link.replace('${' + part + '}', website[part])
-    const page = await browser.newPage()
-    page.setOfflineMode(false)
-    // stop loading shits when the page is all parsed!
-    page.on('domcontentloaded', () => page.setOfflineMode(true))
-    // here is were we will navigate to the page
-    await page.goto(link, { waitUntil: 'domcontentloaded' })
-    this.quiet && console.log(`${link} reached`)
-    let posts = await page.$$(website['post'])
-    posts = await this.parsePosts(posts, website, page)
-    // posts = this.sortPosts(posts, website.isChart)
-    this.quiet && console.log(posts)
-    const config = this.getConfig(website)
-    data = { posts, config: { ...config, link } }
-    await browser.close()
-    return data
+    // Validate website configuration
+    if (!website || !website.website) {
+      throw new Error('Website configuration is missing or invalid')
+    }
+
+    // Validate URL format
+    const urlPattern = /^https?:\/\/.+/i
+    if (!urlPattern.test(website.website)) {
+      throw new Error(`Invalid website URL: ${website.website}`)
+    }
+
+    let browser
+    try {
+      // Launch browser with secure configuration
+      // Removed --no-sandbox flag for better security
+      // Added timeout and resource limits
+      browser = await puppeteer.launch({
+        headless: true, // Always run headless in production
+        args: [
+          '--disable-setuid-sandbox', // Safer alternative to --no-sandbox
+          '--disable-dev-shm-usage', // Overcome limited resource problems
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--disable-gpu'
+        ],
+        timeout: 30000 // 30 second timeout
+      })
+
+      let data = {}
+      let link = website.website
+      website.ignore = website.ignore ? website.ignore : /''/
+
+      // some link will come with variable, adjust it for convenience
+      const partMatch = link.match(/\$\{(.+)?\}/)
+      const part = partMatch ? partMatch[1] : null
+      if (part && website[part]) {
+        link = link.replace('${' + part + '}', website[part])
+      }
+
+      // Validate the final URL
+      if (!urlPattern.test(link)) {
+        throw new Error(`Invalid resolved URL: ${link}`)
+      }
+
+      const page = await browser.newPage()
+      
+      // Set timeouts for page operations
+      page.setDefaultNavigationTimeout(30000) // 30 seconds
+      page.setDefaultTimeout(30000)
+
+      // stop loading when the page is all parsed!
+      page.on('domcontentloaded', () => page.setOfflineMode(true))
+
+      // Navigate to the page with error handling
+      try {
+        await page.goto(link, {
+          waitUntil: 'domcontentloaded',
+          timeout: 30000
+        })
+      } catch (error) {
+        throw new Error(`Failed to navigate to ${link}: ${error.message}`)
+      }
+
+      this.quiet && console.log(`${link} reached`)
+
+      // Validate post selector exists
+      if (!website.post) {
+        throw new Error('Post selector is required in website configuration')
+      }
+
+      let posts = await page.$$(website.post)
+      posts = await this.parsePosts(posts, website, page)
+      this.quiet && console.log(posts)
+      const config = this.getConfig(website)
+      data = { posts, config: { ...config, link } }
+
+      return data
+    } catch (error) {
+      throw new Error(`Crawl failed for ${website.website}: ${error.message}`)
+    } finally {
+      // Ensure browser is always closed
+      if (browser) {
+        await browser.close().catch(() => {
+          // Ignore errors when closing browser
+        })
+      }
+    }
   }
 
   async parsePosts(posts, website, page) {

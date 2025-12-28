@@ -18,13 +18,27 @@ class DataHandler {
       string = readFileSync(filename, 'utf8')
     }
 
-    const data = yaml.safeLoad(string)
-    return data
+    // Use load() with safe schema instead of deprecated safeLoad()
+    // This prevents code execution from YAML files
+    // For js-yaml v3: use DEFAULT_SAFE_SCHEMA, for v4+: schema is built-in
+    try {
+      const schema = yaml.DEFAULT_SAFE_SCHEMA || yaml.CORE_SCHEMA
+      const data = yaml.load(string, { schema })
+      return data
+    } catch (error) {
+      throw new Error(`Failed to parse YAML file ${filename}: ${error.message}`)
+    }
   }
 
   static async write(filename, data) {
-    const content = yaml.safeDump(data)
-    return writeFileSync(filename, content)
+    // Use dump() with safe schema instead of deprecated safeDump()
+    try {
+      const schema = yaml.DEFAULT_SAFE_SCHEMA || yaml.CORE_SCHEMA
+      const content = yaml.dump(data, { schema })
+      return writeFileSync(filename, content, 'utf8')
+    } catch (error) {
+      throw new Error(`Failed to write YAML file ${filename}: ${error.message}`)
+    }
   }
 
   static loadConfig() {

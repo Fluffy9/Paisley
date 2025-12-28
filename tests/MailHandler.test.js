@@ -202,27 +202,59 @@ describe('sortAndSlicePost is working as expected', () => {
   function isPostsSorted(data) {
     let allSorted = true
     const sort = data.config.sort
-    data.posts.sort((a, b) => {
-      if (Array.isArray(sort) && sort.length == 3) {
-        let [fo, op, so] = sort
-        const expA = a[fo] + op + a[so]
-        const expB = a[fo] + op + b[so]
-        a = eval(expA)
-        b = eval(expB)
-        //   // go here
-      } else if (typeof sort == 'string') {
-        a = a[sort]
-        b = b[sort]
+
+    // Safe evaluation function (matches MailHandler implementation)
+    function safeEvaluate(operand1, operator, operand2) {
+      const allowedOperators = ['+', '-', '*', '/']
+      if (!allowedOperators.includes(operator)) {
+        return 0
       }
+      const num1 = Number(operand1) || 0
+      const num2 = Number(operand2) || 0
+      switch (operator) {
+        case '+':
+          return num1 + num2
+        case '-':
+          return num1 - num2
+        case '*':
+          return num1 * num2
+        case '/':
+          return num2 !== 0 ? num1 / num2 : 0
+        default:
+          return 0
+      }
+    }
+
+    function fetchProp(data, prop) {
+      let result = 0
+      if (typeof prop === 'string' && data[prop]) result = data[prop]
+      return !Number(result) ? 0 : Number(result)
+    }
+
+    data.posts.sort((a, b) => {
+      let valA, valB
+      if (Array.isArray(sort) && sort.length === 3) {
+        const [fo, op, so] = sort
+        // Use safe evaluation instead of eval()
+        valA = safeEvaluate(fetchProp(a, fo), op, fetchProp(a, so))
+        valB = safeEvaluate(fetchProp(b, fo), op, fetchProp(b, so))
+      } else if (typeof sort === 'string') {
+        valA = fetchProp(a, sort)
+        valB = fetchProp(b, sort)
+      } else {
+        valA = 0
+        valB = 0
+      }
+
       // for some reason js gives a > b in ascending
-      // mayber the want you to verify that you want the same thing
-      if (data.config.ascending && a <= b) {
+      // maybe they want you to verify that you want the same thing
+      if (data.config.ascending && valA <= valB) {
         allSorted = false
-      } else if (!data.config.ascending && a >= b) {
+      } else if (!data.config.ascending && valA >= valB) {
         allSorted = false
       }
 
-      allSorted = !!a && !!b ? allSorted : false
+      allSorted = !!valA && !!valB ? allSorted : false
       return true
     })
     return allSorted
